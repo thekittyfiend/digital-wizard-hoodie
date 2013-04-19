@@ -1,0 +1,222 @@
+-+++++++++++++++++++++++++++++++++++++++++++/*
+Accelerometer code courtesy of:
+http://competefornothing.com/?p=531
+  GND = GND
+  VCC = 5v
+  SDA = A4
+  SCL = A5
+  
+Code for the LEDs courtesy of Adafruit at:
+https://github.com/adafruit/LPD8806
+*/
+
+/* LIBRARIES */
+
+//Call the accelerometer libraries
+#include <Wire.h>
+#include <MMA7660.h>
+//Call the LED libraries
+#include "LPD8806.h"
+#include "SPI.h"
+
+/* GLOBAL VARIABLES */
+
+//Number of RGB LEDs in strand:
+int nLEDs = 10;
+
+//2 pins for output:
+int dataPin  = 11; //the pin on which to output each bit
+int clockPin = 13; //the pin to toggle once the dataPin has been set correctly
+
+//Declare a new LPD8806 object called strip.
+//The first parameter is the number of LEDs in the strand. The next two
+//parameters are the SPI data and clock pins, which are the two output
+//pins declared previously:
+LPD8806 strip = LPD8806(nLEDs, dataPin, clockPin);
+
+//This first method is pretty self-explanatory: it sets up the accelerometer
+//and LED strands for use.
+void setup()
+{
+  //Set up the input (accelerometer)
+  Serial.begin(9600); //set the data rate for transmission to 9600 baud
+  MMA7660.init(); //initialize the accelerometer
+  
+  //Set up the output (LEDs)
+  strip.begin(); //start up the LED strip
+  strip.show(); //update the strip, to start they are all 'off'
+} //end method setup
+
+//This method is sort of like the main method. It deals mainly
+//with the accelerometer and contains print statements.
+void loop()
+{
+  //Declare the three axes
+  int x,y,z; 
+  //delay(100); // There will be new values every 100ms
+  
+  //Retrieve the axis values
+  MMA7660.getValues(&x,&y,&z); 
+  
+  //Print to the serial monitor the values of the axes
+  Serial.print("X: ");
+  Serial.print(x);
+  Serial.print(" Y: ");
+  Serial.print(y);
+  Serial.print(" Z: ");
+  Serial.println(z);
+  
+  //Call the colors method using x, y and z as parameters.
+  colors(x, y, z);
+} //end method loop
+
+//This method deals solely with the LEDs. Each if statement is a
+//different condition under which the colors that follow will cycle.
+void colors(int x, int y, int z)
+{
+    if (x >= 0 && y >= 0) //so long as x and y are positive...
+    {
+      //Cycle through the following colors:
+      
+      //Red (for twice as long as yellow)
+      colorWipe(strip.Color(127,   0,   0), 50); //calls the colorWipe method and
+                                                 //uses the strip object to call Color
+      //Yellow                                   //from the .cpp library; the parameters are 
+      colorWipe(strip.Color(127, 127,   0), 25); //RGB for Color and length for colorWipe
+      
+      delay(100);
+    }//end if statement
+    
+   if (x <= 0 && y <= 0) //so long as x and y are negative...
+    {
+      //Cycle through the following colors:
+      
+      //Green
+      colorChase(strip.Color(  0, 127,   0), 50); //calls the colorChase method and
+                                                  //again calls Color using the strip
+      //Violet                                    //object. Parameters are still RGB
+      colorChase(strip.Color(127,   0, 127), 50); //for Color and length for colorChase
+      
+      delay(100);
+    }//end if statement
+    
+   if (x >= 0 && y >= 0 && z <= 0) //if x and y are positive but z is negative...
+   {
+     //Cycle through the following colors:
+     
+     //White (relatively slowly)
+     colorWipe(strip.Color(127, 127, 127), 125); 
+     
+     //Blue
+     colorChase(strip.Color(  0,   0, 127), 35); //calls colorChase 3 times and sets it
+     colorChase(strip.Color(  0,   0, 127), 35); //to run fairly quickly
+     colorChase(strip.Color(  0,   0, 127), 35); 
+   }//end if statement
+   
+   if (z >= 0 && z <= 50) //if z is between 0 and 50...
+    {
+      //Call the rainbowCycle method, creating a multicolored effect
+      rainbowCycle(0); //make it go through the cycle fairly fast
+      
+      delay(100);
+    }//end if statement
+} //end method colors
+
+//Fills the dots progressively along the strip.
+void colorWipe(uint32_t sixx, uint8_t wait) 
+{
+  //Declare a counter variable
+  int nikki;
+
+  for (nikki=0; nikki < strip.numPixels(); nikki++) //sets the loop to iterate 10 times
+  {
+    //Call the setPixelColor method from the .cpp library,
+    //which sets the color of the LEDs. The number of LEDs 
+    //and the desired RGB values are the parameters.
+    strip.setPixelColor(nikki, sixx);
+    //Call the show method from the .cpp library. This pushes
+    //information to the LEDs and effectively refreshes LED states.
+    strip.show();
+    
+    delay(wait); //enters a delay of the amount of time specified
+                 //when the method is called
+  }//end for loop
+}//end method colorWipe
+
+//Chases one dot down the full strip.
+void colorChase(uint32_t zombie, uint8_t wait) 
+{
+  //Declare a counter variable
+  int rob;
+
+  // Start by turning all pixels off:
+  for(rob=0; rob<strip.numPixels(); rob++) //sets the loop to iterate 10 times
+  {
+    //Call the setPixelColor method from the library.
+    strip.setPixelColor(rob, 0); //sets the color to 0, meaning off
+  }//end for loop
+  
+  //Then display one pixel at a time:
+  for(rob=0; rob<strip.numPixels(); rob++) //sets the loop to iterate 10 times
+  {
+    //Call the setPixelColor method from the library one more time.
+    strip.setPixelColor(rob, zombie); //turn the new pixel 'on'
+    strip.show();              //refresh LED states
+    strip.setPixelColor(rob, 0); //this erases the pixel, but doesn't refresh until
+                                 //the loop is finished or else it would turn back on
+    delay(wait);
+  }//end for loop
+
+  strip.show(); //refresh again to turn off last pixel; the pixel is done chasing down the strip
+} //end method colorChase
+
+//This method makes the rainbow wheel equally distributed 
+//along the chain and cycles through.
+void rainbowCycle(uint8_t wait) 
+{
+  //Declare two counter variables
+  uint16_t ozzy, osbourne;
+  
+  for (osbourne=0; osbourne < 384 * 5; osbourne++) //initializes osbourne to iterate 5 cycles
+  {                                                //of all 384 colors in the wheel
+  
+    for (ozzy=0; ozzy < strip.numPixels(); ozzy++) //initializes ozzy to iterate
+    {                                              //through the number of pixels
+      //The setPixelColor method uses each pixel as a fraction of 
+      //the full 384-color wheel (hence the i / strip.numPixels() 
+      //expression). It calls the Wheel method as a parameter.
+      //Then we add in osbourne which makes the colors go around per pixel,
+      //and the % 384 is to make the wheel cycle around.
+      strip.setPixelColor(ozzy, Wheel( ((ozzy * 384 / strip.numPixels()) + osbourne) % 384) );
+    }//end inner for loop
+    
+    strip.show(); //write all the pixels out
+    delay(wait); //sets a delay for the time specified when the method is called
+  }//end outer for loop
+}//end method rainbowCycle
+
+//Input a value 0 to 384 to get a color value.
+//The colours are a transition r - g -b - back to r
+uint32_t Wheel(uint16_t WheelPos)
+{
+  byte r, g, b;
+  switch(WheelPos / 128)
+  {
+    case 0:
+      r = 127 - WheelPos % 128;   //Red down
+      g = WheelPos % 128;      // Green up
+      b = 0;                  //blue off
+      break; 
+    case 1:
+      g = 127 - WheelPos % 128;  //green down
+      b = WheelPos % 128;      //blue up
+      r = 0;                  //red off
+      break; 
+    case 2:
+      b = 127 - WheelPos % 128;  //blue down 
+      r = WheelPos % 128;      //red up
+      g = 0;                  //green off
+      break; 
+  }
+  return(strip.Color(r,g,b));
+}
